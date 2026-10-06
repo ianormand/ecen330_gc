@@ -71,13 +71,12 @@ void tone_start(tone_t tone, uint32_t freq)
     uint32_t samples = tone_sample_hz / freq;
     sound_stop();
 
-    //loops through and makes the wave forms sine, square, triangle and sawtooth
+    //loops through and makes the wave forms 
     for (uint32_t i = 0; i < samples; i++) 
     {
         float phase = (float)i / (float)samples;
         float value = 0.0f;
 
-        //switches based on the tone
         switch (tone) {
         case SINE_T:
             value = 127.5f +

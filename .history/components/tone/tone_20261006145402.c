@@ -29,13 +29,6 @@ int32_t tone_init(uint32_t sample_hz)
 
     uint8_t *new_buffer = malloc(buffer_size * sizeof(*new_buffer));
 
-    //check to make sure malloc worked
-    if (new_buffer == NULL) 
-    {
-        return 1;
-    }
-
-    //stop the sound and set things up
     sound_stop();
     free(tone_waveform_buffer);
     tone_waveform_buffer = new_buffer;
@@ -48,13 +41,12 @@ int32_t tone_init(uint32_t sample_hz)
 // Return zero if successful, or non-zero otherwise.
 int32_t tone_deinit(void)
 {
-    //frees all the resouces and deallocates memory
     sound_stop();
     free(tone_waveform_buffer);
     tone_waveform_buffer = NULL;
     tone_sample_hz = 0;
 
-    return sound_deinit();
+    return sound_deinit;
 }
 
 // Start playing the specified tone.
@@ -70,14 +62,11 @@ void tone_start(tone_t tone, uint32_t freq)
 
     uint32_t samples = tone_sample_hz / freq;
     sound_stop();
-
-    //loops through and makes the wave forms sine, square, triangle and sawtooth
     for (uint32_t i = 0; i < samples; i++) 
     {
         float phase = (float)i / (float)samples;
         float value = 0.0f;
 
-        //switches based on the tone
         switch (tone) {
         case SINE_T:
             value = 127.5f +
@@ -121,8 +110,7 @@ void tone_start(tone_t tone, uint32_t freq)
         }
         tone_waveform_buffer[i] = (uint8_t)(value + 0.5f);
     }
-
-    sound_cyclic(tone_waveform_buffer, samples);
+        sound_cyclic(tone_waveform_buffer, samples);
 
 }
 

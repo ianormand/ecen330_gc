@@ -77,7 +77,6 @@ void tone_start(tone_t tone, uint32_t freq)
         float phase = (float)i / (float)samples;
         float value = 0.0f;
 
-        //switches based on the tone
         switch (tone) {
         case SINE_T:
             value = 127.5f +
