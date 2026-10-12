@@ -3,6 +3,26 @@
 #include <tone.h>
 
 
+#define MIN_SAMPLES_PER_PERIOD 2U
+#define TONE_SUCCESS 0
+#define TONE_ERROR 1
+
+#define SAMPLE_MIN 0.0f
+#define SAMPLE_MAX 255.0f
+#define SAMPLE_CENTER 128.0f
+#define SINE_AMPLITUDE 127.5f
+#define TWO_PI 6.2831853f
+#define QUARTER_PERIOD 0.25f
+#define HALF_PERIOD 0.5f
+#define THREE_QUARTER_PERIOD 0.75f
+#define SAMPLE_ROUNDING_OFFSET 0.5f
+
+#define TRIANGLE_FIRST_RISE_SLOPE 508.0f
+#define TRIANGLE_FALL_SLOPE 510.0f
+#define TRIANGLE_LAST_RISE_SLOPE 512.0f
+#define SAW_FIRST_RISE_SLOPE 254.0f
+#define SAW_LAST_RISE_SLOPE 256.0f
+
 static uint8_t *tone_waveform_buffer = NULL;
 static uint32_t tone_sample_hz = 0;
 
@@ -13,9 +33,9 @@ static uint32_t tone_sample_hz = 0;
 int32_t tone_init(uint32_t sample_hz)
 {
     // check for valid sample rate
-    if (sample_hz < 2U * LOWEST_FREQ) 
+    if (sample_hz < MIN_SAMPLES_PER_PERIOD * LOWEST_FREQ)
     {
-    return 1;
+    return TONE_ERROR;
     }
 
     //initilize sound_init()
@@ -23,16 +43,17 @@ int32_t tone_init(uint32_t sample_hz)
 
     // Round up to hold a complete period at the lowest frequency.
     uint32_t buffer_size = sample_hz / LOWEST_FREQ;
-    if (sample_hz % LOWEST_FREQ != 0U) {
+    if (sample_hz % LOWEST_FREQ != 0U) 
+    {
         buffer_size++;
     }
 
     uint8_t *new_buffer = malloc(buffer_size * sizeof(*new_buffer));
 
     //check to make sure malloc worked
-    if (new_buffer == NULL) 
+    if (new_buffer == NULL)
     {
-        return 1;
+        return TONE_ERROR;
     }
 
     //stop the sound and set things up
@@ -41,7 +62,7 @@ int32_t tone_init(uint32_t sample_hz)
     tone_waveform_buffer = new_buffer;
     tone_sample_hz = sample_hz;
 
-    return 0;
+    return TONE_SUCCESS;
 }
 
 // Frees resources used for tone generation (DAC, etc.).
@@ -63,7 +84,7 @@ int32_t tone_deinit(void)
 void tone_start(tone_t tone, uint32_t freq)
 {
     //check the parameters to see if theyre in bounds
-    if (tone_waveform_buffer == NULL || tone < SINE_T || tone >= LAST_T || freq < LOWEST_FREQ || freq > tone_sample_hz / 2U) 
+    if (tone_waveform_buffer == NULL || tone < SINE_T || tone >= LAST_T || freq < LOWEST_FREQ || freq > tone_sample_hz / MIN_SAMPLES_PER_PERIOD)
     {
         return;
     }
@@ -72,54 +93,61 @@ void tone_start(tone_t tone, uint32_t freq)
     sound_stop();
 
     //loops through and makes the wave forms sine, square, triangle and sawtooth
-    for (uint32_t i = 0; i < samples; i++) 
+    for (uint32_t i = 0; i < samples; i++)
     {
         float phase = (float)i / (float)samples;
-        float value = 0.0f;
+        float value = SAMPLE_MIN;
 
         //switches based on the tone
         switch (tone) {
         case SINE_T:
-            value = 127.5f +
-                    127.5f * sinf(2.0f * 3.14159265f * phase);
+            value = SINE_AMPLITUDE +
+                    SINE_AMPLITUDE * sinf(TWO_PI * phase);
             break;
 
         case SQUARE_T:
-            value = (i < samples / 2U) ? 255.0f : 0.0f;
+            if (i < samples / MIN_SAMPLES_PER_PERIOD)
+            {
+                value = SAMPLE_MAX;
+            }
+            else 
+            {
+                value = SAMPLE_MIN;
+            }
             break;
 
         case TRIANGLE_T:
             // Rise from 128 to 255.
             // Fall from 255 to 0.
             // Rise from 0 back toward 128.
-            if (phase < 0.25f) 
-            {    
-                value = 128.0f + 508.0f * phase;
-            } else if (phase < 0.75f) 
+            if (phase < QUARTER_PERIOD)
             {
-                value = 255.0f - 510.0f * (phase - 0.25f);
-            } else 
+                value = SAMPLE_CENTER + TRIANGLE_FIRST_RISE_SLOPE * phase;
+            } else if (phase < THREE_QUARTER_PERIOD)
             {
-                value = 512.0f * (phase - 0.75f);
+                value = SAMPLE_MAX - TRIANGLE_FALL_SLOPE * (phase - QUARTER_PERIOD);
+            } else
+            {
+                value = TRIANGLE_LAST_RISE_SLOPE * (phase - THREE_QUARTER_PERIOD);
             }
             break;
 
         case SAW_T:
             // Rise from 128 toward 255.
             // Jump to 0, then rise back toward 128.
-            if (phase < 0.5f) 
+            if (phase < HALF_PERIOD)
             {
-                value = 128.0f + 254.0f * phase;
-            } else 
+                value = SAMPLE_CENTER + SAW_FIRST_RISE_SLOPE * phase;
+            } else
             {
-                value = 256.0f * (phase - 0.5f);
+                value = SAW_LAST_RISE_SLOPE * (phase - HALF_PERIOD);
             }
             break;
 
         default:
             return;
         }
-        tone_waveform_buffer[i] = (uint8_t)(value + 0.5f);
+        tone_waveform_buffer[i] = (uint8_t)(value + SAMPLE_ROUNDING_OFFSET);
     }
 
     sound_cyclic(tone_waveform_buffer, samples);
