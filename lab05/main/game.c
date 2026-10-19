@@ -121,8 +121,8 @@ void game_tick(void)
         break;
 
     case wait_restart_st:
-        // start a new game if the button is pressed
-        if (start_pressed) 
+        // Start a new game when START is pressed after a win or draw.
+        if (start_pressed)
         {
             state = new_game_st;
         }
