@@ -91,6 +91,7 @@ void game_tick(void)
         {
             graphics_drawO(mark_row, mark_col, CONFIG_MARK_CLR);
         }
+        //if someone one, display it in the corner of the screen
         if (board_winner(current_player)) 
         {
             if (current_player == X_m) {
@@ -105,6 +106,7 @@ void game_tick(void)
             graphics_drawMessage("DRAW", CONFIG_MESS_CLR, CONFIG_BACK_CLR);
             state = wait_restart_st;
         } 
+        //switch between X and O turns
         else 
         {
             if (current_player == X_m) {
