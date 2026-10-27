@@ -47,10 +47,14 @@ void game_tick(void)
     previous_a = a_down;
     previous_start = start_down;
 
+    // Results from this tick's actions, used by the transition switch below.
+    bool valid_move = false;
+    bool winner = false;
+    bool board_full = false;
 
+    // State actions: do the work for the current state without changing state.
     switch (state) {
     case init_st:
-        state = new_game_st;
         break;
 
     case new_game_st:
@@ -72,7 +76,6 @@ void game_tick(void)
         graphics_drawMessage("X plays next",
                             CONFIG_MESS_CLR, CONFIG_BACK_CLR);
 
-        state = wait_mark_st;
         break;
         }
 
@@ -104,7 +107,7 @@ void game_tick(void)
                 mark_row >= 0 && mark_row < CONFIG_BOARD_R &&
                 mark_col >= 0 && mark_col < CONFIG_BOARD_C &&
                 board_set(mark_row, mark_col, current_player)) {
-                state = mark_st;
+                valid_move = true;
             }
 
             break;
@@ -120,20 +123,20 @@ void game_tick(void)
         {
             graphics_drawO(mark_row, mark_col, CONFIG_MARK_CLR);
         }
-        //if someone one, display it in the corner of the screen
-        if (board_winner(current_player)) 
+        // Check the result before changing the current player.
+        winner = board_winner(current_player);
+        board_full = (board_mark_count() == CONFIG_BOARD_SPACES);
+        if (winner)
         {
             if (current_player == X_m) {
                 graphics_drawMessage("X wins", CONFIG_MESS_CLR, CONFIG_BACK_CLR);
             } else {
                 graphics_drawMessage("O wins", CONFIG_MESS_CLR, CONFIG_BACK_CLR);
             }
-            state = wait_restart_st;
         } 
-        else if (board_mark_count() == CONFIG_BOARD_SPACES) 
+        else if (board_full)
         {
             graphics_drawMessage("DRAW", CONFIG_MESS_CLR, CONFIG_BACK_CLR);
-            state = wait_restart_st;
         } 
         //switch between X and O turns
         else 
@@ -147,12 +150,41 @@ void game_tick(void)
                 current_player = X_m;
                 graphics_drawMessage("X plays next", CONFIG_MESS_CLR, CONFIG_BACK_CLR);
             }
+        }
+        break;
+
+    case wait_restart_st:
+        break;
+    }
+
+
+
+
+    // State transitions (state machine number 2)
+    switch (state) {
+    case init_st:
+        state = new_game_st;
+        break;
+
+    case new_game_st:
+        state = wait_mark_st;
+        break;
+
+    case wait_mark_st:
+        if (valid_move) {
+            state = mark_st;
+        }
+        break;
+
+    case mark_st:
+        if (winner || board_full) {
+            state = wait_restart_st;
+        } else {
             state = wait_mark_st;
         }
         break;
 
     case wait_restart_st:
-        // Start a new game when START is pressed after a win or draw.
         if (start_pressed)
         {
             state = new_game_st;
