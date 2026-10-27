@@ -1,8 +1,15 @@
 #include "missile.h"
 #include "config.h"
+#include "lcd.h"
 #include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include "plane.h"
+#include "game.h"
+#include <hw.h>
+#include <cursor.h>
+#include <sound.h>
+#include <pin.h>
 
 
 
@@ -21,7 +28,7 @@ typedef enum{
     Exploding_Growing,
     Exploding_Shrinking,
     Impacted
-} game_state;
+}game_state;
 
 
 
