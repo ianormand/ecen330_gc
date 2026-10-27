@@ -8,6 +8,7 @@
 #include "config.h"
 #include "hw.h"
 #include "pin.h"
+#include "com.h"
 
 typedef enum {
     init_st,
@@ -53,7 +54,13 @@ void game_tick(void)
         break;
 
     case new_game_st:
+        {
         // Reset and draw the game, clears the board and its data too
+        uint8_t stray;
+        // Discard leftover data from the previous game.
+        while (com_read(&stray, sizeof(stray)) > 0) {
+        }
+
         lcd_fillScreen(CONFIG_BACK_CLR);
         graphics_drawGrid(CONFIG_GRID_CLR);
         board_clear();
@@ -67,19 +74,41 @@ void game_tick(void)
 
         state = wait_mark_st;
         break;
+        }
 
-    case wait_mark_st:
-        // Accept a valid move otherwise ignore the button press
-        if (a_pressed) 
+        case wait_mark_st:
         {
-            nav_get_loc(&mark_row, &mark_col);
+            uint8_t location;
+            bool have_move = false;
 
-            if (board_set(mark_row, mark_col, current_player))
-            {
+            if (a_pressed) {
+                nav_get_loc(&mark_row, &mark_col);
+
+                location = (uint8_t)(
+                    ((uint8_t)mark_row << 4) |
+                    ((uint8_t)mark_col & 0x0F)
+                );
+
+                // Send before checking whether the square is occupied.
+                com_write(&location, sizeof(location));
+                have_move = true;
+            } else if (com_read(&location, sizeof(location)) == 1) {
+                mark_row = (location >> 4) & 0x0F;
+                mark_col = location & 0x0F;
+
+                have_move = true;
+            }
+
+            // Validate either a local move or a received move.
+            if (have_move &&
+                mark_row >= 0 && mark_row < CONFIG_BOARD_R &&
+                mark_col >= 0 && mark_col < CONFIG_BOARD_C &&
+                board_set(mark_row, mark_col, current_player)) {
                 state = mark_st;
             }
+
+            break;
         }
-        break;
 
     case mark_st:
         // Draw the move, check if anyone won or if its full
