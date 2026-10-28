@@ -25,6 +25,12 @@ static int8_t mark_row, mark_col;
 static bool previous_a;
 static bool previous_start;
 
+static bool have_move = false;
+
+const int8_t BITMASK4 =4;
+const int8_t BITMASK16 =0x0F;
+
+
 //initilize the game state and variables
 void game_init(void)
 {
@@ -38,81 +44,140 @@ void game_init(void)
 void game_tick(void)
 {
     // Read buttons and detect new presses here, buttons all use pullups so 0 means pressed
-    bool a_down = (pin_get_level(HW_BTN_A) == 0);
-    bool start_down = (pin_get_level(HW_BTN_START) == 0);
+    
+    //shouldnt be here
+    // bool a_pressed = (!pin_get_level(HW_BTN_A));
+    //         bool start_pressed = (!pin_get_level(HW_BTN_START));
 
-    bool a_pressed = a_down && !previous_a;
-    bool start_pressed = start_down && !previous_start;
-
-    previous_a = a_down;
-    previous_start = start_down;
-
-    // Results from this tick's actions, used by the transition switch below.
-    bool valid_move = false;
-    bool winner = false;
-    bool board_full = false;
-
-    // State actions: do the work for the current state without changing state.
+    //transitions
     switch (state) {
     case init_st:
+        state = new_game_st;
         break;
+    //draws the initial message and moves to wait mark state
+    case new_game_st:
+        {
 
+        graphics_drawMessage("X plays next", CONFIG_MESS_CLR, CONFIG_BACK_CLR);
+        state = wait_mark_st;
+        break;
+        }
+    
+    //if the move it valid, then mark it by moving to mark state
+    case wait_mark_st:
+        {
+            //if it is a valid move, check if it gets marked and if nothing then mark have move as false
+            if (have_move) 
+            {
+                have_move = false;
+                //check if that spot is getting marked and move to mark state
+                if ( mark_row >= 0 && mark_row < CONFIG_BOARD_R &&
+                mark_col >= 0 && mark_col < CONFIG_BOARD_C &&
+                board_set(mark_row, mark_col, current_player))
+                {
+                    state = mark_st;
+                }
+            }
+          
+            break;
+        }
+    //check if there was a win and move to wait restart state, if not then move back to wait mark state
+    case mark_st:
+    
+        //determines the winner
+        if (board_winner(current_player)) 
+        {   
+            //displays which player won the game
+            if (current_player == X_m) 
+            {
+                graphics_drawMessage("X wins", CONFIG_MESS_CLR, CONFIG_BACK_CLR);
+            } 
+            else 
+            {
+                graphics_drawMessage("O wins", CONFIG_MESS_CLR, CONFIG_BACK_CLR);
+            }
+            state = wait_restart_st;
+        } 
+        //if it was a draw then wait for a restart and display that it was a draw
+        else if (board_mark_count() == CONFIG_BOARD_SPACES) 
+        {
+            graphics_drawMessage("DRAW", CONFIG_MESS_CLR, CONFIG_BACK_CLR);
+            state = wait_restart_st;
+        } 
+        //switch between X and O turns
+        else 
+        {
+            //switches between X and O for turns, transitions to wait mark state
+            if (current_player == X_m) {
+                current_player = O_m;
+                graphics_drawMessage("O plays next", CONFIG_MESS_CLR, CONFIG_BACK_CLR);
+            } 
+            else
+            {
+                current_player = X_m;
+                graphics_drawMessage("X plays next", CONFIG_MESS_CLR, CONFIG_BACK_CLR);
+            }
+            state = wait_mark_st;
+        }
+        break;
+    
+    //if the start button is pressed, move to the new game state
+    case wait_restart_st:
+        // Start a new game when START is pressed after a win or draw.
+        if (!pin_get_level(HW_BTN_START))
+        {
+            state = new_game_st;
+        }
+        break;
+    }
+
+    //This is the switch state that contains the actions of the state machine
+    switch(state)
+    {
+    //nothing happens during the initialization here
+    case init_st:
+        break;
+    //when the state shifts to a new game, it clears the screen and sets everything up for a new game
     case new_game_st:
         {
         // Reset and draw the game, clears the board and its data too
         uint8_t stray;
-        // Discard leftover data from the previous game.
-        while (com_read(&stray, sizeof(stray)) > 0) {
-        }
-
         lcd_fillScreen(CONFIG_BACK_CLR);
         graphics_drawGrid(CONFIG_GRID_CLR);
         board_clear();
-
         current_player = X_m;
-
         nav_set_loc(CONFIG_BOARD_R / 2, CONFIG_BOARD_C / 2);
-
-        graphics_drawMessage("X plays next",
-                            CONFIG_MESS_CLR, CONFIG_BACK_CLR);
-
+        while (com_read(&stray,1)){}
         break;
         }
-
-        case wait_mark_st:
+    //
+    case wait_mark_st:
         {
-            uint8_t location;
-            bool have_move = false;
+        uint8_t location;
+        //when button A is pressed it gets the location of where the cursor is at and checks if it can mark that space and if it can then it marks it
+        if (!pin_get_level(HW_BTN_A)) 
+        {
+            nav_get_loc(&mark_row, &mark_col);
 
-            if (a_pressed) {
-                nav_get_loc(&mark_row, &mark_col);
+            location = (uint8_t)(
+                ((uint8_t)mark_row << BITMASK4) |
+                ((uint8_t)mark_col & BITMASK16)
+            );
 
-                location = (uint8_t)(
-                    ((uint8_t)mark_row << 4) |
-                    ((uint8_t)mark_col & 0x0F)
-                );
+            //Send before checking whether the square is occupied.
+            com_write(&location, sizeof(location));
+            have_move = true;
+        } 
+        else if (com_read(&location, sizeof(location)) == 1) 
+        {
+            mark_row = (location >> BITMASK4);
+            mark_col = location & BITMASK16;
 
-                // Send before checking whether the square is occupied.
-                com_write(&location, sizeof(location));
-                have_move = true;
-            } else if (com_read(&location, sizeof(location)) == 1) {
-                mark_row = (location >> 4) & 0x0F;
-                mark_col = location & 0x0F;
-
-                have_move = true;
-            }
-
-            // Validate either a local move or a received move.
-            if (have_move &&
-                mark_row >= 0 && mark_row < CONFIG_BOARD_R &&
-                mark_col >= 0 && mark_col < CONFIG_BOARD_C &&
-                board_set(mark_row, mark_col, current_player)) {
-                valid_move = true;
-            }
-
-            break;
+            have_move = true;
         }
-
+        break;
+        }
+    //marks the selected spot
     case mark_st:
         // Draw the move, check if anyone won or if its full
         if (current_player == X_m)
@@ -123,72 +188,12 @@ void game_tick(void)
         {
             graphics_drawO(mark_row, mark_col, CONFIG_MARK_CLR);
         }
-        // Check the result before changing the current player.
-        winner = board_winner(current_player);
-        board_full = (board_mark_count() == CONFIG_BOARD_SPACES);
-        if (winner)
-        {
-            if (current_player == X_m) {
-                graphics_drawMessage("X wins", CONFIG_MESS_CLR, CONFIG_BACK_CLR);
-            } else {
-                graphics_drawMessage("O wins", CONFIG_MESS_CLR, CONFIG_BACK_CLR);
-            }
-        } 
-        else if (board_full)
-        {
-            graphics_drawMessage("DRAW", CONFIG_MESS_CLR, CONFIG_BACK_CLR);
-        } 
-        //switch between X and O turns
-        else 
-        {
-            if (current_player == X_m) {
-                current_player = O_m;
-                graphics_drawMessage("O plays next", CONFIG_MESS_CLR, CONFIG_BACK_CLR);
-            } 
-            else
-            {
-                current_player = X_m;
-                graphics_drawMessage("X plays next", CONFIG_MESS_CLR, CONFIG_BACK_CLR);
-            }
-        }
         break;
-
+    //nothing happens here
     case wait_restart_st:
-        break;
-    }
-
-
-
-
-    // State transitions (state machine number 2)
-    switch (state) {
-    case init_st:
-        state = new_game_st;
-        break;
-
-    case new_game_st:
-        state = wait_mark_st;
-        break;
-
-    case wait_mark_st:
-        if (valid_move) {
-            state = mark_st;
-        }
-        break;
-
-    case mark_st:
-        if (winner || board_full) {
-            state = wait_restart_st;
-        } else {
-            state = wait_mark_st;
-        }
-        break;
-
-    case wait_restart_st:
-        if (start_pressed)
-        {
-            state = new_game_st;
-        }
         break;
     }
 }
+
+
+

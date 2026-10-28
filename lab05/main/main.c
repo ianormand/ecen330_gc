@@ -94,12 +94,9 @@ void app_main(void)
 	// Main game loop
 	uint64_t t1, t2, tmax = 0; // For hardware timer values
 	int8_t r, c; // For navigator location
-	// Keep servicing inputs so START can always restart the game.
-	while (true)
+	while (pin_get_level(HW_BTN_MENU)) // while MENU button not pressed
 	{
-		while (!interrupt_flag) {
-			vTaskDelay(1);
-		}
+		while (!interrupt_flag) ;
 		t1 = esp_timer_get_time();
 		interrupt_flag = false;
 		isr_handled_count++;
