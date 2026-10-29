@@ -23,6 +23,7 @@ void plane_init(missile_t *plane_missile)
 {
     global_plane_missle = plane_missile;
     plane_missile->currentState = Idle;
+    alread_launched_missile = false;
     state = Idle;
 }
 
@@ -64,6 +65,7 @@ void plane_tick(void)
             {
                 state = Flying;
                 x_pos = LCD_W;
+                alread_launched_missile = false;
             }
             break;
 
@@ -85,6 +87,11 @@ void plane_tick(void)
         case Flying:
             //if (x_pos >= (LCD_W / 2) )
             printf("reached");
+            if(!alread_launched_missile && (x_pos <= (LCD_W / 2)) && missile_is_idle(global_plane_missle))
+            {
+                missile_launch_plane(global_plane_missle, x_pos, y_pos);
+                alread_launched_missile = true;
+            }
             lcd_fillTriangle(x_pos, y_pos, x_pos + CONFIG_PLANE_WIDTH, y_pos - (CONFIG_PLANE_HEIGHT/2), x_pos + CONFIG_PLANE_WIDTH, y_pos + (CONFIG_PLANE_HEIGHT/2), CONFIG_COLOR_PLANE);
             x_pos -= CONFIG_PLANE_DISTANCE_PER_TICK;
             break;

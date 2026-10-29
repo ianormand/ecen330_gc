@@ -66,14 +66,6 @@ void game_tick(void)
     //if the move it valid, then mark it by moving to mark state
     case wait_mark_st:
         {
-<<<<<<< HEAD
-            //if it is a valid move, check if it gets marked and if nothing then mark have move as false
-            if (have_move) 
-            {
-                have_move = false;
-                //check if that spot is getting marked and move to mark state
-                if ( mark_row >= 0 && mark_row < CONFIG_BOARD_R &&
-=======
             uint8_t location;
             bool have_move = false;
             // Validate either a local move or a received move.
@@ -92,7 +84,6 @@ void game_tick(void)
             } 
             if (have_move &&
                 mark_row >= 0 && mark_row < CONFIG_BOARD_R &&
->>>>>>> 4a271ae (going back)
                 mark_col >= 0 && mark_col < CONFIG_BOARD_C &&
                 board_set(mark_row, mark_col, current_player))
                 {
